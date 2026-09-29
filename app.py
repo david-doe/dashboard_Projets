@@ -163,7 +163,7 @@ pct_done = round((done_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
 pct_remaining = round(100 - pct_done, 1)
 
 # --- TITRE PRINCIPAL PARFAITEMENT VISIBLE ---
-st.markdown("<div class='dash-header'>⚡ Tableau de bord Agile Sprint & Suivi Opérationnel (Canada • M2 • Perso)</div>", unsafe_allow_html=True)
+st.markdown("<div class='dash-header'>⚡ Tableau de bord  & Suivi Opérationnel </div>", unsafe_allow_html=True)
 
 # ==========================================
 # LIGNE SUPÉRIEURE : ANALYTICS & VISUELS AGILE
