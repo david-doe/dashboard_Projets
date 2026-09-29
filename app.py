@@ -6,26 +6,26 @@ from datetime import date
 import os
 
 st.set_page_config(
-    page_title="Agile Cockpit — Canada, M2 & Perso",
+    page_title="DASHBOARD PROJETS",
     page_icon="⚡",
     layout="wide",
 )
 
 DATA_FILE = "roadmap.csv"
 
-# --- THEME SOMBRE ULTRA-LISIBLE & STYLÉ ---
+# --- THEME SOMBRE ULTRA-LISIBLE & CORRIGÉ ---
 st.markdown("""
 <style>
-    /* Arrière-plan global */
     .stApp {
         background-color: #0b0f19;
         color: #f8fafc;
     }
+    /* Correction de la marge supérieure pour éviter que la barre Streamlit ne coupe le titre */
     .block-container {
-        padding-top: 1.2rem;
-        padding-bottom: 2rem;
+        padding-top: 3.5rem !important;
+        padding-bottom: 2rem !important;
+        max-width: 98% !important;
     }
-    /* Cartes en verre dépoli / Dark Slate */
     .dash-card {
         background: linear-gradient(145deg, #131b2e, #0f172a);
         border: 1px solid #1e293b;
@@ -35,16 +35,16 @@ st.markdown("""
         margin-bottom: 16px;
     }
     .dash-header {
-        font-size: 26px;
+        font-size: 24px;
         font-weight: 800;
-        letter-spacing: -0.5px;
+        line-height: 1.4;
         color: #ffffff;
-        margin-bottom: 18px;
-        display: flex;
-        align-items: center;
-        gap: 10px;
+        margin-top: 10px;
+        margin-bottom: 22px;
+        padding-bottom: 10px;
+        border-bottom: 1px solid #1e293b;
+        word-wrap: break-word;
     }
-    /* Badges KPI */
     .kpi-box {
         background: #1e293b;
         border: 1px solid #334155;
@@ -64,7 +64,6 @@ st.markdown("""
         text-transform: uppercase;
         letter-spacing: 0.8px;
     }
-    /* Tuiles Métriques colorées */
     .metric-tile-blue {
         background: linear-gradient(135deg, #0284c7, #0369a1);
         border-radius: 10px;
@@ -92,7 +91,6 @@ st.markdown("""
         margin-top: 4px;
         text-transform: uppercase;
     }
-    /* Pastilles de priorité */
     .badge-p1 {
         background-color: #ef4444;
         color: #ffffff;
@@ -117,10 +115,17 @@ st.markdown("""
         font-size: 11px;
         font-weight: 700;
     }
+    .badge-done {
+        background-color: #10b981;
+        color: #ffffff;
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-size: 11px;
+        font-weight: 700;
+    }
 </style>
 """, unsafe_allow_html=True)
 
-# --- DONNÉES PAR DÉFAUT ---
 DEFAULT_TASKS = [
     {"Pôle": "Canada", "Tâche": "Refonte CV format canadien (orienté data/projets)", "Statut": "À faire", "Priorité": "P1 - Urgent", "Échéance": "2026-10-15"},
     {"Pôle": "Canada", "Tâche": "Passage certification Power BI PL-300", "Statut": "En cours", "Priorité": "P1 - Urgent", "Échéance": "2026-11-20"},
@@ -148,7 +153,7 @@ def save_data(df):
 
 df = load_data()
 
-# --- MÉTRIQUES CLÉS ---
+# --- CALCUL DES INDICATEURS ---
 total_tasks = len(df)
 done_tasks = len(df[df["Statut"] == "Terminé"])
 in_progress = len(df[df["Statut"] == "En cours"])
@@ -157,8 +162,8 @@ p1_urgent = len(df[(df["Priorité"] == "P1 - Urgent") & (df["Statut"] != "Termin
 pct_done = round((done_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
 pct_remaining = round(100 - pct_done, 1)
 
-# En-tête
-st.markdown("<div class='dash-header'>⚡ Tableau de bord Agile Sprint & Suivi Opérationnel</div>", unsafe_allow_html=True)
+# --- TITRE PRINCIPAL PARFAITEMENT VISIBLE ---
+st.markdown("<div class='dash-header'>⚡ Tableau de bord Agile Sprint & Suivi Opérationnel (Canada • M2 • Perso)</div>", unsafe_allow_html=True)
 
 # ==========================================
 # LIGNE SUPÉRIEURE : ANALYTICS & VISUELS AGILE
@@ -293,22 +298,24 @@ with c_bot1:
 
 with c_bot2:
     st.markdown("<div class='dash-card'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:16px; font-weight:800; color:#ffffff; margin-bottom:4px;'>✅ Validation des Tâches par Pôle</div>", unsafe_allow_html=True)
-    st.caption("Coche une tâche pour la marquer automatiquement comme **Terminé** :")
+    st.markdown("<div style='font-size:16px; font-weight:800; color:#ffffff; margin-bottom:4px;'>📋 Suivi des Tâches par Pôle</div>", unsafe_allow_html=True)
+    st.caption("Coche pour valider une tâche, ou décoche dans l'historique pour la réactiver :")
 
-    # SÉPARATION STRICTE PAR PÔLE VIA DES ONGLETS
     tab_can, tab_m2, tab_per = st.tabs(["🍁 Canada", "🎓 M2 SIAD", "👤 Personnel"])
 
     def render_pole_tasks(pole_name):
         pending = df[(df["Pôle"] == pole_name) & (df["Statut"] != "Terminé")]
+        done = df[(df["Pôle"] == pole_name) & (df["Statut"] == "Terminé")]
+
+        st.markdown("<div style='font-size:12px; font-weight:700; color:#38bdf8; text-transform:uppercase; margin:8px 0 4px 0;'>⚡ Actions en cours / À faire</div>", unsafe_allow_html=True)
         if pending.empty:
-            st.markdown(f"<div style='color:#10b981; font-weight:600; padding:10px 0;'>✨ Toutes les actions {pole_name} sont terminées !</div>", unsafe_allow_html=True)
+            st.markdown("<div style='color:#10b981; font-size:13px; font-weight:600; padding:4px 0;'>✨ Aucune tâche en attente sur ce pôle !</div>", unsafe_allow_html=True)
         else:
             for idx, row in pending.iterrows():
                 prio_style = "badge-p1" if "P1" in row["Priorité"] else ("badge-p2" if "P2" in row["Priorité"] else "badge-p3")
                 col_chk, col_txt = st.columns([0.1, 0.9])
                 with col_chk:
-                    checked = st.checkbox("", key=f"chk_{idx}", label_visibility="collapsed")
+                    checked = st.checkbox("", key=f"chk_pending_{idx}", label_visibility="collapsed")
                 with col_txt:
                     st.markdown(
                         f"<span class='{prio_style}'>{row['Priorité'][:2]}</span> "
@@ -320,6 +327,28 @@ with c_bot2:
                     df.at[idx, "Statut"] = "Terminé"
                     save_data(df)
                     st.rerun()
+
+        st.markdown("<div style='border-top: 1px solid #1e293b; margin: 14px 0 10px 0;'></div>", unsafe_allow_html=True)
+
+        with st.expander(f"✅ Tâches validées ({len(done)})", expanded=False):
+            if done.empty:
+                st.caption("Aucune action clôturée pour le moment.")
+            else:
+                for idx, row in done.iterrows():
+                    col_chk, col_txt = st.columns([0.1, 0.9])
+                    with col_chk:
+                        revert = st.checkbox("", value=True, key=f"chk_done_{idx}", label_visibility="collapsed")
+                    with col_txt:
+                        st.markdown(
+                            f"<span class='badge-done'>FAIT</span> "
+                            f"<span style='text-decoration: line-through; color:#64748b; font-weight:500;'>{row['Tâche']}</span> "
+                            f"<span style='color:#475569; font-size:11px;'>({row['Échéance']})</span>",
+                            unsafe_allow_html=True
+                        )
+                    if not revert:
+                        df.at[idx, "Statut"] = "En cours"
+                        save_data(df)
+                        st.rerun()
 
     with tab_can:
         render_pole_tasks("Canada")
