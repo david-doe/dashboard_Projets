@@ -2,11 +2,11 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import date, datetime
+from datetime import date
 import os
 
 st.set_page_config(
-    page_title="dashboard_projet",
+    page_title="DASHBOARD_PROJET",
     page_icon="⚡",
     layout="wide",
 )
@@ -172,6 +172,21 @@ st.markdown("""
         font-size: 11px;
         font-weight: 700;
     }
+    /* Style discret pour les boutons de suppression */
+    div.stButton > button {
+        background-color: transparent;
+        border: 1px solid #334155;
+        color: #94a3b8;
+        padding: 2px 8px;
+        font-size: 12px;
+        border-radius: 6px;
+        transition: 0.2s;
+    }
+    div.stButton > button:hover {
+        border-color: #ef4444;
+        color: #ef4444;
+        background-color: rgba(239, 68, 68, 0.1);
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -205,16 +220,19 @@ df = load_data()
 
 # --- CALCUL DES JOURS RESTANTS POUR LES RAPPELS ---
 today = date.today()
-df["Days_Left"] = (pd.to_datetime(df["Échéance"]).dt.date - today).apply(lambda x: x.days)
+if not df.empty:
+    df["Days_Left"] = (pd.to_datetime(df["Échéance"]).dt.date - today).apply(lambda x: x.days)
+else:
+    df["Days_Left"] = []
 
 # --- CALCUL DES INDICATEURS ---
 total_tasks = len(df)
-done_tasks = len(df[df["Statut"] == "Terminé"])
-in_progress = len(df[df["Statut"] == "En cours"])
-todo_tasks = len(df[df["Statut"] == "À faire"])
-p1_urgent = len(df[(df["Priorité"] == "P1 - Urgent") & (df["Statut"] != "Terminé")])
+done_tasks = len(df[df["Statut"] == "Terminé"]) if not df.empty else 0
+in_progress = len(df[df["Statut"] == "En cours"]) if not df.empty else 0
+todo_tasks = len(df[df["Statut"] == "À faire"]) if not df.empty else 0
+p1_urgent = len(df[(df["Priorité"] == "P1 - Urgent") & (df["Statut"] != "Terminé")]) if not df.empty else 0
 pct_done = round((done_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
-pct_remaining = round(100 - pct_done, 1)
+pct_remaining = round(100 - pct_done, 1) if total_tasks > 0 else 100
 
 # --- TITRE PRINCIPAL ---
 st.markdown("<div class='dash-header'>⚡ Tableau de bord & Suivi Opérationnel </div>", unsafe_allow_html=True)
@@ -222,8 +240,11 @@ st.markdown("<div class='dash-header'>⚡ Tableau de bord & Suivi Opérationnel 
 # ==========================================
 # BANDEAU RADAR : RAPPEL DES DATES PROCHES
 # ==========================================
-ALERT_THRESHOLD_DAYS = 35  # Affiche les tâches non faites à moins de 35 jours ou en retard
-upcoming_alerts = df[(df["Statut"] != "Terminé") & (df["Days_Left"] <= ALERT_THRESHOLD_DAYS)].sort_values(by="Days_Left")
+ALERT_THRESHOLD_DAYS = 35
+if not df.empty:
+    upcoming_alerts = df[(df["Statut"] != "Terminé") & (df["Days_Left"] <= ALERT_THRESHOLD_DAYS)].sort_values(by="Days_Left")
+else:
+    upcoming_alerts = pd.DataFrame()
 
 if not upcoming_alerts.empty:
     alert_html = "<div class='alert-banner'>"
@@ -264,8 +285,11 @@ with c_top1:
         st.markdown(f"<div class='kpi-box'><div class='kpi-val' style='color:#38bdf8;'>{todo_tasks}</div><div class='kpi-sub'>À démarrer</div></div>", unsafe_allow_html=True)
     
     st.markdown("<div style='margin-top:14px; font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase;'>Backlog par priorité</div>", unsafe_allow_html=True)
-    prio_counts = df[df["Statut"] != "Terminé"]["Priorité"].value_counts().reset_index()
-    prio_counts.columns = ["Priorité", "Nombre"]
+    if not df.empty and not df[df["Statut"] != "Terminé"].empty:
+        prio_counts = df[df["Statut"] != "Terminé"]["Priorité"].value_counts().reset_index()
+        prio_counts.columns = ["Priorité", "Nombre"]
+    else:
+        prio_counts = pd.DataFrame({"Priorité": ["Aucune"], "Nombre": [0]})
     
     fig_prio = px.bar(prio_counts, x="Nombre", y="Priorité", orientation="h", color_discrete_sequence=["#38bdf8"])
     fig_prio.update_layout(
@@ -289,7 +313,7 @@ with c_top2:
             mode="gauge+number",
             value=done_tasks,
             gauge={
-                "axis": {"range": [0, total_tasks], "tickcolor": "#94a3b8"},
+                "axis": {"range": [0, max(total_tasks, 1)], "tickcolor": "#94a3b8"},
                 "bar": {"color": "#38bdf8"},
                 "bgcolor": "#1e293b"
             },
@@ -315,7 +339,11 @@ with c_top2:
         st.plotly_chart(fig_g2, use_container_width=True, config={"displayModeBar": False})
 
     st.markdown("<div style='font-size:12px; font-weight:700; color:#94a3b8; text-transform:uppercase;'>Vélocité par Pôle</div>", unsafe_allow_html=True)
-    pole_stat = df.groupby(["Pôle", "Statut"]).size().reset_index(name="Total")
+    if not df.empty:
+        pole_stat = df.groupby(["Pôle", "Statut"]).size().reset_index(name="Total")
+    else:
+        pole_stat = pd.DataFrame({"Pôle": ["Canada"], "Statut": ["À faire"], "Total": [0]})
+        
     fig_bar = px.bar(
         pole_stat, x="Pôle", y="Total", color="Statut", barmode="group",
         color_discrete_map={"Terminé": "#10b981", "En cours": "#38bdf8", "À faire": "#475569"}
@@ -361,7 +389,7 @@ with c_top3:
     st.markdown("</div>", unsafe_allow_html=True)
 
 # ==========================================
-# LIGNE INFÉRIEURE : ACTIONS, VALIDATION & AJOUT
+# LIGNE INFÉRIEURE : ACTIONS, VALIDATION & SUPPRESSION
 # ==========================================
 c_bot1, c_bot2, c_bot3 = st.columns([1, 1.4, 1.2])
 
@@ -383,12 +411,16 @@ with c_bot1:
 
 with c_bot2:
     st.markdown("<div class='dash-card'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-size:16px; font-weight:800; color:#ffffff; margin-bottom:4px;'>📋 Suivi des Tâches par Pôle</div>", unsafe_allow_html=True)
-    st.caption("Coche pour valider une tâche, ou décoche dans l'historique pour la réactiver :")
+    st.markdown("<div style='font-size:16px; font-weight:800; color:#ffffff; margin-bottom:4px;'>📋 Suivi & Gestion des Tâches par Pôle</div>", unsafe_allow_html=True)
+    st.caption("Coche pour valider une tâche, ou clique sur 🗑️ pour la supprimer définitivement :")
 
     tab_can, tab_m2, tab_per = st.tabs(["🍁 Canada", "🎓 M2 SIAD", "👤 Personnel"])
 
     def render_pole_tasks(pole_name):
+        if df.empty:
+            st.caption("Aucune tâche enregistrée.")
+            return
+
         pending = df[(df["Pôle"] == pole_name) & (df["Statut"] != "Terminé")].sort_values(by="Days_Left")
         done = df[(df["Pôle"] == pole_name) & (df["Statut"] == "Terminé")]
 
@@ -400,7 +432,6 @@ with c_bot2:
                 prio_style = "badge-p1" if "P1" in row["Priorité"] else ("badge-p2" if "P2" in row["Priorité"] else "badge-p3")
                 days = row["Days_Left"]
                 
-                # Badge d'alerte temporelle à côté de chaque tâche
                 if days < 0:
                     time_tag = f"<span style='color:#ef4444; font-weight:800; font-size:12px;'>🚨 Retard ({abs(days)}j)</span>"
                 elif days <= 7:
@@ -410,7 +441,7 @@ with c_bot2:
                 else:
                     time_tag = f"<span style='color:#94a3b8; font-size:12px;'>({row['Échéance']} • J-{days})</span>"
 
-                col_chk, col_txt = st.columns([0.1, 0.9])
+                col_chk, col_txt, col_del = st.columns([0.08, 0.80, 0.12])
                 with col_chk:
                     checked = st.checkbox("", key=f"chk_pending_{idx}", label_visibility="collapsed")
                 with col_txt:
@@ -419,9 +450,16 @@ with c_bot2:
                         f"<span style='color:#f8fafc; font-weight:600;'>{row['Tâche']}</span> {time_tag}",
                         unsafe_allow_html=True
                     )
+                with col_del:
+                    delete_btn = st.button("🗑️", key=f"del_pending_{idx}", help="Supprimer cette tâche")
+
                 if checked:
                     df.at[idx, "Statut"] = "Terminé"
                     save_data(df)
+                    st.rerun()
+                if delete_btn:
+                    df_dropped = df.drop(index=idx).reset_index(drop=True)
+                    save_data(df_dropped)
                     st.rerun()
 
         st.markdown("<div style='border-top: 1px solid #1e293b; margin: 14px 0 10px 0;'></div>", unsafe_allow_html=True)
@@ -431,7 +469,7 @@ with c_bot2:
                 st.caption("Aucune action clôturée pour le moment.")
             else:
                 for idx, row in done.iterrows():
-                    col_chk, col_txt = st.columns([0.1, 0.9])
+                    col_chk, col_txt, col_del = st.columns([0.08, 0.80, 0.12])
                     with col_chk:
                         revert = st.checkbox("", value=True, key=f"chk_done_{idx}", label_visibility="collapsed")
                     with col_txt:
@@ -441,9 +479,16 @@ with c_bot2:
                             f"<span style='color:#475569; font-size:11px;'>({row['Échéance']})</span>",
                             unsafe_allow_html=True
                         )
+                    with col_del:
+                        delete_done_btn = st.button("🗑️", key=f"del_done_{idx}", help="Supprimer définitivement")
+
                     if not revert:
                         df.at[idx, "Statut"] = "En cours"
                         save_data(df)
+                        st.rerun()
+                    if delete_done_btn:
+                        df_dropped = df.drop(index=idx).reset_index(drop=True)
+                        save_data(df_dropped)
                         st.rerun()
 
     with tab_can:
