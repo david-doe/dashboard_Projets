@@ -2,25 +2,24 @@ import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
 import plotly.express as px
-from datetime import date
+from datetime import date, datetime
 import os
 
 st.set_page_config(
-    page_title="DASHBOARD PROJETS",
+    page_title="dashboard_projet",
     page_icon="⚡",
     layout="wide",
 )
 
-DATA_FILE = "roadmap.csv"
+DATA_FILE = "roadmap_agile.csv"
 
-# --- THEME SOMBRE ULTRA-LISIBLE & CORRIGÉ ---
+# --- THEME SOMBRE & STYLES D'ALERTE ---
 st.markdown("""
 <style>
     .stApp {
         background-color: #0b0f19;
         color: #f8fafc;
     }
-    /* Correction de la marge supérieure pour éviter que la barre Streamlit ne coupe le titre */
     .block-container {
         padding-top: 3.5rem !important;
         padding-bottom: 2rem !important;
@@ -40,11 +39,63 @@ st.markdown("""
         line-height: 1.4;
         color: #ffffff;
         margin-top: 10px;
-        margin-bottom: 22px;
+        margin-bottom: 16px;
         padding-bottom: 10px;
         border-bottom: 1px solid #1e293b;
-        word-wrap: break-word;
     }
+    /* Bandeau de rappel d'échéances */
+    .alert-banner {
+        background: linear-gradient(90deg, #1e1b4b, #0f172a);
+        border: 1px solid #3730a3;
+        border-left: 5px solid #f59e0b;
+        border-radius: 10px;
+        padding: 14px 18px;
+        margin-bottom: 20px;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    }
+    .alert-title {
+        font-size: 14px;
+        font-weight: 800;
+        color: #fbbf24;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+        margin-bottom: 10px;
+    }
+    .alert-item {
+        background-color: rgba(30, 41, 59, 0.75);
+        border: 1px solid #334155;
+        border-radius: 8px;
+        padding: 8px 12px;
+        margin-bottom: 6px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .countdown-overdue {
+        background-color: #dc2626;
+        color: #ffffff;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+    }
+    .countdown-urgent {
+        background-color: #ea580c;
+        color: #ffffff;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+    }
+    .countdown-soon {
+        background-color: #f59e0b;
+        color: #111827;
+        padding: 3px 10px;
+        border-radius: 6px;
+        font-size: 12px;
+        font-weight: 800;
+    }
+    /* KPI & Tuiles */
     .kpi-box {
         background: #1e293b;
         border: 1px solid #334155;
@@ -70,14 +121,12 @@ st.markdown("""
         padding: 16px;
         color: #ffffff;
         margin-bottom: 12px;
-        box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
     }
     .metric-tile-indigo {
         background: linear-gradient(135deg, #4f46e5, #4338ca);
         border-radius: 10px;
         padding: 16px;
         color: #ffffff;
-        box-shadow: 0 4px 14px rgba(79, 70, 229, 0.3);
     }
     .tile-num {
         font-size: 32px;
@@ -149,9 +198,14 @@ def load_data():
     return df
 
 def save_data(df):
-    df.to_csv(DATA_FILE, index=False)
+    df_to_save = df.drop(columns=["Days_Left"], errors="ignore")
+    df_to_save.to_csv(DATA_FILE, index=False)
 
 df = load_data()
+
+# --- CALCUL DES JOURS RESTANTS POUR LES RAPPELS ---
+today = date.today()
+df["Days_Left"] = (pd.to_datetime(df["Échéance"]).dt.date - today).apply(lambda x: x.days)
 
 # --- CALCUL DES INDICATEURS ---
 total_tasks = len(df)
@@ -162,8 +216,39 @@ p1_urgent = len(df[(df["Priorité"] == "P1 - Urgent") & (df["Statut"] != "Termin
 pct_done = round((done_tasks / total_tasks * 100), 1) if total_tasks > 0 else 0
 pct_remaining = round(100 - pct_done, 1)
 
-# --- TITRE PRINCIPAL PARFAITEMENT VISIBLE ---
-st.markdown("<div class='dash-header'>⚡ Tableau de bord  & Suivi Opérationnel </div>", unsafe_allow_html=True)
+# --- TITRE PRINCIPAL ---
+st.markdown("<div class='dash-header'>⚡ Tableau de bord & Suivi Opérationnel </div>", unsafe_allow_html=True)
+
+# ==========================================
+# BANDEAU RADAR : RAPPEL DES DATES PROCHES
+# ==========================================
+ALERT_THRESHOLD_DAYS = 35  # Affiche les tâches non faites à moins de 35 jours ou en retard
+upcoming_alerts = df[(df["Statut"] != "Terminé") & (df["Days_Left"] <= ALERT_THRESHOLD_DAYS)].sort_values(by="Days_Left")
+
+if not upcoming_alerts.empty:
+    alert_html = "<div class='alert-banner'>"
+    alert_html += f"<div class='alert-title'>🔔 Rappel automatique — {len(upcoming_alerts)} échéance(s) proche(s) ou dépassée(s) à traiter</div>"
+    
+    for _, row in upcoming_alerts.iterrows():
+        days = row["Days_Left"]
+        if days < 0:
+            badge = f"<span class='countdown-overdue'>🚨 En retard de {abs(days)} j</span>"
+        elif days == 0:
+            badge = "<span class='countdown-overdue'>🚨 Aujourd'hui !</span>"
+        elif days <= 7:
+            badge = f"<span class='countdown-urgent'>🔥 J-{days} (Urgent)</span>"
+        else:
+            badge = f"<span class='countdown-soon'>⏳ J-{days}</span>"
+            
+        alert_html += (
+            f"<div class='alert-item'>"
+            f"<div><b style='color:#38bdf8;'>[{row['Pôle']}]</b> <span style='color:#f8fafc; font-weight:600;'>{row['Tâche']}</span> "
+            f"<span style='color:#94a3b8; font-size:12px;'>— Échéance : {row['Échéance']}</span></div>"
+            f"<div>{badge}</div>"
+            f"</div>"
+        )
+    alert_html += "</div>"
+    st.markdown(alert_html, unsafe_allow_html=True)
 
 # ==========================================
 # LIGNE SUPÉRIEURE : ANALYTICS & VISUELS AGILE
@@ -304,7 +389,7 @@ with c_bot2:
     tab_can, tab_m2, tab_per = st.tabs(["🍁 Canada", "🎓 M2 SIAD", "👤 Personnel"])
 
     def render_pole_tasks(pole_name):
-        pending = df[(df["Pôle"] == pole_name) & (df["Statut"] != "Terminé")]
+        pending = df[(df["Pôle"] == pole_name) & (df["Statut"] != "Terminé")].sort_values(by="Days_Left")
         done = df[(df["Pôle"] == pole_name) & (df["Statut"] == "Terminé")]
 
         st.markdown("<div style='font-size:12px; font-weight:700; color:#38bdf8; text-transform:uppercase; margin:8px 0 4px 0;'>⚡ Actions en cours / À faire</div>", unsafe_allow_html=True)
@@ -313,14 +398,25 @@ with c_bot2:
         else:
             for idx, row in pending.iterrows():
                 prio_style = "badge-p1" if "P1" in row["Priorité"] else ("badge-p2" if "P2" in row["Priorité"] else "badge-p3")
+                days = row["Days_Left"]
+                
+                # Badge d'alerte temporelle à côté de chaque tâche
+                if days < 0:
+                    time_tag = f"<span style='color:#ef4444; font-weight:800; font-size:12px;'>🚨 Retard ({abs(days)}j)</span>"
+                elif days <= 7:
+                    time_tag = f"<span style='color:#f97316; font-weight:800; font-size:12px;'>🔥 J-{days}</span>"
+                elif days <= 35:
+                    time_tag = f"<span style='color:#fbbf24; font-weight:700; font-size:12px;'>⏳ J-{days}</span>"
+                else:
+                    time_tag = f"<span style='color:#94a3b8; font-size:12px;'>({row['Échéance']} • J-{days})</span>"
+
                 col_chk, col_txt = st.columns([0.1, 0.9])
                 with col_chk:
                     checked = st.checkbox("", key=f"chk_pending_{idx}", label_visibility="collapsed")
                 with col_txt:
                     st.markdown(
                         f"<span class='{prio_style}'>{row['Priorité'][:2]}</span> "
-                        f"<span style='color:#f8fafc; font-weight:600;'>{row['Tâche']}</span> "
-                        f"<span style='color:#94a3b8; font-size:12px;'>({row['Échéance']})</span>",
+                        f"<span style='color:#f8fafc; font-weight:600;'>{row['Tâche']}</span> {time_tag}",
                         unsafe_allow_html=True
                     )
                 if checked:
